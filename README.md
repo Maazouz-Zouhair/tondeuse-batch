@@ -15,29 +15,37 @@ Ce projet simule le fonctionnement d'une tondeuse à gazon automatique qui navig
 ## Structure du projet
 
 ```plaintext
-mower-simulator/
+tondeuse-batch/
 ├── src/
 │   ├── main/
 │   │   ├── java/
 │   │   │   └── com/
-│   │   │       └── mower/
-│   │   │           ├── MowerSimulatorApplication.java
-│   │   │           ├── config/
+│   │   │       └── tondeuse/
+│   │   │           ├─TondeuseBatchApplication.java
+│   │   │           ├── batch/config/
 │   │   │           │   └── BatchConfig.java
 │   │   │           ├── model/
-│   │   │           │   ├── Mower.java
-│   │   │           │   ├── Lawn.java
-│   │   │           ├── processor/
-│   │   │           │   └── MowerItemProcessor.java
-│   │   │           ├── reader/
-│   │   │           │   └── MowerItemReader.java
-│   │   │           ├── writer/
-│   │   │           │   └── MowerItemWriter.java
+│   │   │           │   └─Tondeuse.java
+│   │   │           │   └─ Pelouse.java
+│   │   │           |
+|   |   |           ├── batch/processor/
+│   │   │           │   └─ TondeuseItemProcessor.java
+│   │   │           ├── batch/reader/
+│   │   │           │   └─TondeuseItemReader.java
+│   │   │           ├── batch/writer/
+│   │   │           │   └─TondeuseItemWriter.java
 │   ├── test/
 │       ├── java/
 │       │   └── com/
-│       │       └── mower/
-│       │           ├── MowerBatchIntegrationTest.java
+│       │       └── tondeuse/
+│       │           ├─TondeuseBatchIntegrationTest.java
+|       |           ├─TondeuseBatchApplicationTest.java
+│   │   │           ├── batch/processor/
+│   │   │           │   └ TondeuseItemProcessorTest.java
+│   │   │           ├── batch/reader/
+│   │   │           │   └TondeuseItemReaderTest.java
+│   │   │           ├── batch/writer/
+│   │   │           │   └TondeuseItemWriterTest.java
 │       └── resources/
 │           ├── application-test.properties
 │           └── input/
@@ -52,8 +60,8 @@ mower-simulator/
 ## Installation
 1. Cloner le dépôt :
 ```
-git clone https://github.com/votre-nom-utilisateurmower-simulator.git
-cd mower-simulator
+git clone https://github.com/Maazouz-Zouhair/tondeuse-batch.git
+cd tondeuse-batch
 ```
 2. Construire le projet :
 ```
@@ -67,7 +75,7 @@ Le fichier de configuration principal de l'application situé dans src/main/reso
 `application-test.properties`
 Le fichier de configuration de test situé dans src/test/resources/application-test.properties.
 
-## Déploiement avec Docker
+## Déploiement avec Docker (locale)
 ### Création d'un Dockerfile: 
 ```
 # Utiliser une image de base avec JDK 11
@@ -95,3 +103,82 @@ docker build --pull --rm -f "Dockerfile" -t tondeusebatch "."
 ```
 docker run -p 8080:8080 tondeusebatch
 ```
+## Déploiement avec Jenkins (locale)
+### I.  Créer un Nouveau Job Pipeline
+* Allez dans `Jenkins` > `New Item`.
+* Entrez un nom pour le job, sélectionnez `Pipeline`, puis cliquez sur `OK`
+### II. Configurer le Pipeline:
+- Dans la section Pipeline, sélectionnez Pipeline script from SCM.
+- SCM: Git
+- Repository URL: https://github.com/Maazouz-Zouhair/tondeuse-batch.
+- Branch Specifier: `main`.
+- Script Path: Le chemin vers le fichier Jenkinsfile.
+#### Jenkinsfile pour le Déploiement Local
+```
+pipeline {
+    agent any
+
+    environment {
+        DOCKER_IMAGE = 'tondeusebatch'
+    }
+
+    stages {
+        stage('Checkout') {
+            steps {
+                // Cloner le dépôt
+                git branch: 'main', url: 'https://github.com/Maazouz-Zouhair/tondeuse-batch'
+            }
+        }
+
+        stage('Build') {
+            steps {
+                // Construire l'application avec Maven
+                sh 'mvn clean package'
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    // Construire l'image Docker
+                    docker.build("${env.DOCKER_IMAGE}:${env.BUILD_ID}")
+                }
+            }
+        }
+
+        stage('Deploy') {
+            steps {
+                script {
+                    // Arrêter et supprimer les anciens conteneurs
+                    sh """
+                    docker stop tondeusebatch || true
+                    docker rm 
+                    tondeusebatch || true
+                    """
+
+                    // Déployer le nouveau conteneur Docker
+                    sh """
+                    docker run -d --name tondeusebatch -p 8080:8080 ${env.DOCKER_IMAGE}:${env.BUILD_ID}
+                    """
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            echo 'Pipeline terminé'
+        }
+        success {
+            echo 'Le déploiement a été effectué avec succès!'
+        }
+        failure {
+            echo 'Le déploiement a échoué.'
+        }
+    }
+}
+```
+### III. Exécuter le Pipeline
+#### 1. Enregistrer et Construire le Job:
+- Cliquez sur Save pour enregistrer le job.
+- Cliquez sur Build Now pour exécuter le pipeline.
